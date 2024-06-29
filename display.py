@@ -15,5 +15,4 @@ class Display:
         self.clear()        
         
     def clear(self):
-        self.screen.fill(Display.BLACK)
-        
+        self.screen.fill(Display.BLACK)        
