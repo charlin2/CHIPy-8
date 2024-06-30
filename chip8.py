@@ -2,6 +2,7 @@ from random import randint
 import pygame
 from display import Display
 from font import Font
+from pygame.locals import *
 
 pygame.init()
 
@@ -16,6 +17,7 @@ class Chip8:
         self.I = 0
         self.delay_timer = 0
         self.sound_timer = 0
+        self.key = [0] * 16
         
         # load fonts into first slots
         for i, val in enumerate(Font.FONT):
@@ -113,7 +115,7 @@ class Chip8:
  
             # 8XY6: VX >>= 1
             elif b0 == 6:
-                # self.V[b2] = self.V[b1]
+                # self.V[b2] = self.V[b1]  # optional 'old style'
                 self.V[0xF] = self.V[b2] & 0x1
                 self.V[b2] >>= 1
  
@@ -128,8 +130,12 @@ class Chip8:
             
             # 8XYE: VX <<= 1
             elif b0 == 0xE:
-                # self.V[b2] = self.V[b1]
+                # self.V[b2] = self.V[b1]  # optional 'old style'
                 # TODO: get MSB from VX
+                msb = self.V[b2]
+                for _ in range(7):
+                    msb >>= 1
+                self.V[0xF] = msb
                 self.V[b2] <<= 1
                     
         elif b3 == 0x9:
@@ -157,50 +163,67 @@ class Chip8:
         elif b3 == 0xE:
             # EX9E: skip if key == VX
             if b0 == 0xE:
-                pass
+                if self.key[self.V[b2]]:
+                    self.PC += 2
         
             # EXA1: skip if key != VX
             elif b0 == 0x1:
-                pass
+                if not self.key[self.V[b2]]:
+                    self.PC += 2
             
         elif b3 == 0xF:
             if b1 == 0x0:
                 # FX07: set VX = delay_timer
                 if b0 == 0x7:
-                    pass
+                    self.V[b2] = self.delay_timer
                 
                 # FX0A: get key press
                 if b0 == 0xA:
-                    pass
+                    if any(self.key):
+                       for i, pressed in enumerate(self.key):
+                           if pressed:
+                               self.V[b2] = i
+                    else:
+                        self.PC -= 2 
             
             elif b1 == 0x1:
                 # FX15: delay_timer = VX
                 if b0 == 0x5:
-                    pass
+                    self.delay_timer = self.V[b2]
                 
                 # FX18: sound_timer = VX
                 elif b0 == 0x8:
-                    pass
+                    self.sound_timer = self.V[b2]
                 
                 # FX1E: I += VX
                 elif b0 == 0xE:
-                    pass
+                    self.I += self.V[b2]
                 
             # FX29: I = font address of VX
             elif b1 == 0x2:
-                pass
-            
-            # FX33: 
+                self.I = self.V[b2] * 5
+                
+            # FX33: convert Vx to decimal and store digits in memory at I
             elif b1 == 0x3:
-                pass
+                decimal = self.V[b2]
+                i = 2
+                while decimal > 0:
+                    self.memory[self.I + i] = decimal % 10
+                    decimal //= 10
+                    i -= 1
+                while i >= 0:
+                    self.memory[self.I + i] = 0
+                    i -= 1
             
-            # FX55: 
+            # FX55: load variable registers into memory 
             elif b1 == 0x5:
-                pass
+                for i, val in enumerate(self.V[:b2 + 1]):
+                    self.memory[self.I + i] = val
             
-            # FX65: 
+            # FX65: load memory into variable registers
             elif b1 == 0x6:
-                pass
+                for i, val in enumerate(self.memory[self.I : self.I + b2 + 1]):
+                    self.V[i] = val
                 
         self.PC += 2
     
@@ -231,8 +254,6 @@ class Chip8:
         while self.started:
             self.listen()
                     
-            self.display.screen.set_at((16, 16), Display.WHITE)
-            
             opcode = (self.memory[self.PC] << 8) + self.memory[self.PC + 1]
             
             print(hex(self.memory[self.PC]), hex(self.memory[self.PC + 1]))
@@ -244,16 +265,77 @@ class Chip8:
             
             pygame.display.flip()
             
-            pygame.time.wait(10)
+            pygame.time.wait(3)
             
     def listen(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.started = False
-        
-        # TODO: Listen for key press events
-                
-            
-chip8 = Chip8()
-chip8.load_rom("IBM Logo.ch8")
-chip8.start_game()
+
+            elif event.type == pygame.KEYDOWN:
+                if event.key == K_1:
+                    self.key[0x1] = 1
+                elif event.key == K_2:
+                    self.key[0x2] = 1
+                elif event.key == K_3:
+                    self.key[0x3] = 1
+                elif event.key == K_4:
+                    self.key[0xC] = 1
+                elif event.key == K_q:
+                    self.key[0x4] = 1
+                elif event.key == K_w:
+                    self.key[0x5] = 1
+                elif event.key == K_e:
+                    self.key[0x6] = 1
+                elif event.key == K_r:
+                    self.key[0xD] = 1
+                elif event.key == K_a:
+                    self.key[0x7] = 1
+                elif event.key == K_s:
+                    self.key[0x8] = 1
+                elif event.key == K_d:
+                    self.key[0x9] = 1
+                elif event.key == K_f:
+                    self.key[0xE] = 1
+                elif event.key == K_z:
+                    self.key[0xA] = 1
+                elif event.key == K_x:
+                    self.key[0x0] = 1
+                elif event.key == K_c:
+                    self.key[0xB] = 1
+                elif event.key == K_v:
+                    self.key[0xF] = 1
+                    
+            elif event.type == KEYUP:
+                if event.key == K_1:
+                    self.key[0x1] = 0
+                elif event.key == K_2:
+                    self.key[0x2] = 0
+                elif event.key == K_3:
+                    self.key[0x3] = 0
+                elif event.key == K_4:
+                    self.key[0xC] = 0
+                elif event.key == K_q:
+                    self.key[0x4] = 0
+                elif event.key == K_w:
+                    self.key[0x5] = 0
+                elif event.key == K_e:
+                    self.key[0x6] = 0
+                elif event.key == K_r:
+                    self.key[0xD] = 0
+                elif event.key == K_a:
+                    self.key[0x7] = 0
+                elif event.key == K_s:
+                    self.key[0x8] = 0
+                elif event.key == K_d:
+                    self.key[0x9] = 0
+                elif event.key == K_f:
+                    self.key[0xE] = 0
+                elif event.key == K_z:
+                    self.key[0xA] = 0
+                elif event.key == K_x:
+                    self.key[0x0] = 0
+                elif event.key == K_c:
+                    self.key[0xB] = 0
+                elif event.key == K_v:
+                    self.key[0xF] = 0
