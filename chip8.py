@@ -270,7 +270,7 @@ class Chip8:
             
             pygame.display.flip()
             
-            pygame.time.wait(3)
+            # pygame.time.wait(1)
             
     def listen(self):
         for event in pygame.event.get():
