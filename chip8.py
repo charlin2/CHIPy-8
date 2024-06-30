@@ -19,6 +19,8 @@ class Chip8:
         self.sound_timer = 0
         self.key = [0] * 16
         
+        self.DELAYTIMER = USEREVENT + 1
+        
         # load fonts into first slots
         for i, val in enumerate(Font.FONT):
             self.memory[i] = val
@@ -75,6 +77,7 @@ class Chip8:
         elif b3 == 0x7:
             # 7XNN: add value NN to VX
             self.V[b2] += (b1 << 4) + b0
+            self.V[b2] %= 256
         
         elif b3 == 0x8:
             # 8XY0: set VX = VY
@@ -93,15 +96,16 @@ class Chip8:
             elif b0 == 3:
                 self.V[b2] ^= self.V[b1]
                 
-            # 8XY4: VX = (VX + VY) % 0xFF
+            # 8XY4: VX = (VX + VY) % 256
             elif b0 == 4:
                 self.V[0xF] = 0
                 sum = self.V[b2] + self.V[b1]
-                
+
                 # Overflow case
                 if sum > 0xFF:
                     self.V[0xF] = 1
-                    sum %= 0xFF
+                    sum %= 256
+
                 self.V[b2] = sum
 
             # 8XY5: VX = VX - VY
@@ -110,7 +114,7 @@ class Chip8:
                 diff = self.V[b2] - self.V[b1]
                 if diff < 0:
                     self.V[0xF] = 0
-                    diff %= 0xFF
+                    diff %= 256
                 self.V[b2] = diff
  
             # 8XY6: VX >>= 1
@@ -118,25 +122,23 @@ class Chip8:
                 # self.V[b2] = self.V[b1]  # optional 'old style'
                 self.V[0xF] = self.V[b2] & 0x1
                 self.V[b2] >>= 1
- 
+                
             # 8XY7: VX = VY - VX
             elif b0 == 7:
                 self.V[0xF] = 1
                 diff = self.V[b1] - self.V[b2]
                 if diff < 0:
                     self.V[0xF] = 0
-                    diff %= 0xFF
+                    diff %= 256
                 self.V[b2] = diff
             
             # 8XYE: VX <<= 1
             elif b0 == 0xE:
                 # self.V[b2] = self.V[b1]  # optional 'old style'
-                # TODO: get MSB from VX
-                msb = self.V[b2]
-                for _ in range(7):
-                    msb >>= 1
+                msb = self.V[b2] >> 7
                 self.V[0xF] = msb
                 self.V[b2] <<= 1
+                self.V[b2] %= 256
                     
         elif b3 == 0x9:
             # 9XY0: skip if VX != VY
@@ -249,14 +251,17 @@ class Chip8:
             for i, byte in enumerate(rom_data):
                 self.memory[0x200 + i] = byte
 
-    def start_game(self):
+    def start(self):
         self.started = True
+        
+        pygame.time.set_timer(self.DELAYTIMER, round((1/60)*1000))
+        
         while self.started:
             self.listen()
                     
             opcode = (self.memory[self.PC] << 8) + self.memory[self.PC + 1]
             
-            print(hex(self.memory[self.PC]), hex(self.memory[self.PC + 1]))
+            # print(hex(self.memory[self.PC]), hex(self.memory[self.PC + 1]))
             
             self.decode(opcode)
             
@@ -271,6 +276,14 @@ class Chip8:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.started = False
+
+            elif event.type == self.DELAYTIMER:
+                if self.delay_timer > 0:
+                    self.delay_timer -= 1
+                    
+                if self.sound_timer > 0:
+                    self.sound_timer -= 1
+                    # TODO: make sound play
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == K_1:
