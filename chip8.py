@@ -19,6 +19,7 @@ class Chip8:
         self.sound_timer = 0
         self.key = [0] * 16
         
+        self.sound = pygame.mixer.Sound("boop.wav") 
         self.DELAYTIMER = USEREVENT + 1
         
         # load fonts into first slots
@@ -261,16 +262,12 @@ class Chip8:
                     
             opcode = (self.memory[self.PC] << 8) + self.memory[self.PC + 1]
             
-            # print(hex(self.memory[self.PC]), hex(self.memory[self.PC + 1]))
-            
             self.decode(opcode)
             
             scaled_screen = pygame.transform.scale(self.display.screen, (Display.WIDTH * Display.SCALE, Display.HEIGHT * Display.SCALE))
             self.display.window.blit(scaled_screen, (0, 0))
             
             pygame.display.flip()
-            
-            # pygame.time.wait(1)
             
     def listen(self):
         for event in pygame.event.get():
@@ -282,8 +279,8 @@ class Chip8:
                     self.delay_timer -= 1
                     
                 if self.sound_timer > 0:
+                    self.sound.play()
                     self.sound_timer -= 1
-                    # TODO: make sound play
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == K_1:
@@ -352,3 +349,9 @@ class Chip8:
                     self.key[0xB] = 0
                 elif event.key == K_v:
                     self.key[0xF] = 0
+
+rom_path = input("Enter rom: ")
+
+c8 = Chip8()
+c8.load_rom(rom_path)
+c8.start()
