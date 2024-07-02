@@ -6,22 +6,22 @@ from pygame.locals import *
 
 pygame.init()
 
+
 class Chip8:
     def __init__(self):
-        self.speed = 1024
-        self.memory = [0] * 0xFFF
+        self.memory = [0] * 0x1000  # 4096
         self.stack = []
-        self.PC = 0x200
+        self.PC = 0x200  # 512
         self.display = Display()
-        self.V = [0] * 0x10
+        self.V = [0] * 16
         self.I = 0
         self.delay_timer = 0
         self.sound_timer = 0
         self.key = [0] * 16
-        
-        self.sound = pygame.mixer.Sound("boop.wav") 
+
+        self.sound = pygame.mixer.Sound("boop.wav")
         self.DELAYTIMER = USEREVENT + 1
-        
+
         # load fonts into first slots
         for i, val in enumerate(Font.FONT):
             self.memory[i] = val
@@ -32,7 +32,7 @@ class Chip8:
         b1 = (opcode & 0x00F0) >> 4
         b2 = (opcode & 0x0F00) >> 8
         b3 = (opcode & 0xF000) >> 12
-        
+
         # opcodes starting with 0
         if b3 == 0x0:
             # 00E0: clear screen
@@ -41,18 +41,18 @@ class Chip8:
             # 00EE: return from subroutine
             elif b0 == 0xE:
                 self.PC = self.stack.pop()
-        
+
         elif b3 == 0x1:
             # 1NNN: jump - set PC to NNN
             # Shift digits back into place
             self.PC = (b2 << 8) + (b1 << 4) + b0
-            self.PC -= 2 # Offset PC increment
-        
+            self.PC -= 2  # Offset PC increment
+
         elif b3 == 0x2:
             # 2NNN: jump to subroutine
             self.stack.append(self.PC)
-            self.PC = (b2 << 8) + (b1 << 4) + b0 
-            self.PC -= 2 # Offset PC increment
+            self.PC = (b2 << 8) + (b1 << 4) + b0
+            self.PC -= 2  # Offset PC increment
 
         elif b3 == 0x3:
             # 3XNN: skip if VX == NN
@@ -65,38 +65,38 @@ class Chip8:
             val = (b1 << 4) + b0
             if self.V[b2] != val:
                 self.PC += 2
-                
+
         elif b3 == 0x5:
             # 5XY0: skip if VX == VY
             if self.V[b2] == self.V[b1]:
                 self.PC += 2
-            
+
         elif b3 == 0x6:
             # 6XNN: set register VX to NN
             self.V[b2] = (b1 << 4) + b0
-                        
+
         elif b3 == 0x7:
             # 7XNN: add value NN to VX
             self.V[b2] += (b1 << 4) + b0
             self.V[b2] %= 256
-        
+
         elif b3 == 0x8:
             # 8XY0: set VX = VY
             if b0 == 0:
                 self.V[b2] = self.V[b1]
-                
+
             # 8XY1: VX = VX | VY (OR)
             elif b0 == 1:
                 self.V[b2] |= self.V[b1]
-                
+
             # 8XY2: VX = VX & VY (AND)
             elif b0 == 2:
                 self.V[b2] &= self.V[b1]
-                
+
             # 8XY3: VX = VX ^ VY (XOR)
             elif b0 == 3:
                 self.V[b2] ^= self.V[b1]
-                
+
             # 8XY4: VX = (VX + VY) % 256
             elif b0 == 4:
                 self.V[0xF] = 0
@@ -117,13 +117,13 @@ class Chip8:
                     self.V[0xF] = 0
                     diff %= 256
                 self.V[b2] = diff
- 
+
             # 8XY6: VX >>= 1
             elif b0 == 6:
                 # self.V[b2] = self.V[b1]  # optional 'old style'
                 self.V[0xF] = self.V[b2] & 0x1
                 self.V[b2] >>= 1
-                
+
             # 8XY7: VX = VY - VX
             elif b0 == 7:
                 self.V[0xF] = 1
@@ -132,7 +132,7 @@ class Chip8:
                     self.V[0xF] = 0
                     diff %= 256
                 self.V[b2] = diff
-            
+
             # 8XYE: VX <<= 1
             elif b0 == 0xE:
                 # self.V[b2] = self.V[b1]  # optional 'old style'
@@ -140,135 +140,154 @@ class Chip8:
                 self.V[0xF] = msb
                 self.V[b2] <<= 1
                 self.V[b2] %= 256
-                    
+
         elif b3 == 0x9:
             # 9XY0: skip if VX != VY
             if self.V[b2] != self.V[b1]:
                 self.PC += 2
-        
+
         elif b3 == 0xA:
             # ANNN: set index register I to NNN
             self.I = (b2 << 8) + (b1 << 4) + b0
-        
+
         elif b3 == 0xB:
             # BNNN: jump with offset
             self.PC = (b2 << 8) + (b1 << 4) + b0 + self.V[0]
             self.PC -= 2
-        
+
         elif b3 == 0xC:
             # CXNN: generate random number, & with NN, put result in VX
             self.V[b2] = randint(0, 255) & ((b1 << 4) + b0)
-        
+
         elif b3 == 0xD:
             # DXYN: draw sprite at VX, VY with height N
             self.draw(b2, b1, b0)
-            
+
         elif b3 == 0xE:
             # EX9E: skip if key == VX
             if b0 == 0xE:
                 if self.key[self.V[b2]]:
                     self.PC += 2
-        
+
             # EXA1: skip if key != VX
             elif b0 == 0x1:
                 if not self.key[self.V[b2]]:
                     self.PC += 2
-            
+
         elif b3 == 0xF:
             if b1 == 0x0:
                 # FX07: set VX = delay_timer
                 if b0 == 0x7:
                     self.V[b2] = self.delay_timer
-                
+
                 # FX0A: get key press
                 if b0 == 0xA:
                     if any(self.key):
-                       for i, pressed in enumerate(self.key):
-                           if pressed:
-                               self.V[b2] = i
+                        for i, pressed in enumerate(self.key):
+                            if pressed:
+                                self.V[b2] = i
                     else:
-                        self.PC -= 2 
-            
+                        self.PC -= 2
+
             elif b1 == 0x1:
                 # FX15: delay_timer = VX
                 if b0 == 0x5:
                     self.delay_timer = self.V[b2]
-                
+
                 # FX18: sound_timer = VX
                 elif b0 == 0x8:
                     self.sound_timer = self.V[b2]
-                
+
                 # FX1E: I += VX
                 elif b0 == 0xE:
                     self.I += self.V[b2]
-                
+
             # FX29: I = font address of VX
             elif b1 == 0x2:
                 self.I = self.V[b2] * 5
-                
+
             # FX33: convert Vx to decimal and store digits in memory at I
             elif b1 == 0x3:
                 decimal = self.V[b2]
                 i = 2
+
+                # Extract digits and put them in memory
                 while decimal > 0:
                     self.memory[self.I + i] = decimal % 10
                     decimal //= 10
                     i -= 1
+
+                # If decimal number is less than 3 digits, put 0 in memory
                 while i >= 0:
                     self.memory[self.I + i] = 0
                     i -= 1
-            
-            # FX55: load variable registers into memory 
+
+            # FX55: load variable registers into memory
             elif b1 == 0x5:
-                for i, val in enumerate(self.V[:b2 + 1]):
+                for i, val in enumerate(self.V[: b2 + 1]):
                     self.memory[self.I + i] = val
-            
+
             # FX65: load memory into variable registers
             elif b1 == 0x6:
                 for i, val in enumerate(self.memory[self.I : self.I + b2 + 1]):
                     self.V[i] = val
-                
+
         self.PC += 2
-    
+
     def draw(self, b2, b1, n):
         self.V[0xF] = 0
         x = self.V[b2] % 64
         y = self.V[b1] % 32
-        
+
         for i in range(n):
             sprite_line = self.memory[self.I + i]
             if y + i < Display.HEIGHT:
                 for j in range(8):
                     if x + j < Display.WIDTH:
+                        # extract individual bit corresponding to pixel in row
                         newBit = ((0x1 << (7 - j)) & sprite_line) >> (7 - j)
-                        pixel = newBit ^ (self.display.screen.get_at((x + j, y + i)) == Display.WHITE)
-                        if self.display.screen.get_at((x + j, y + i)) == pygame.Color(255, 255, 255) and newBit == 1:
+                        pixel = newBit ^ (
+                            self.display.screen.get_at((x + j, y + i)) == Display.WHITE
+                        )
+
+                        # set carry register if display bit is flipped
+                        if (
+                            self.display.screen.get_at((x + j, y + i))
+                            == pygame.Color(255, 255, 255)
+                            and newBit == 1
+                        ):
                             self.V[0xF] = 1
-                        self.display.screen.set_at((x + j, y + i), Display.WHITE if pixel else Display.BLACK)
-    
+
+                        self.display.screen.set_at(
+                            (x + j, y + i), Display.WHITE if pixel else Display.BLACK
+                        )
+
     def load_rom(self, rom_path):
-        with open(rom_path, 'rb') as rom:
+        with open(rom_path, "rb") as rom:
             rom_data = rom.read()
             for i, byte in enumerate(rom_data):
                 self.memory[0x200 + i] = byte
 
     def start(self):
         self.started = True
-        
-        pygame.time.set_timer(self.DELAYTIMER, round((1/60)*1000))
-        
+
+        pygame.time.set_timer(self.DELAYTIMER, round((1 / 60) * 1000))
+
         while self.started:
             self.listen()
-                    
+
             opcode = (self.memory[self.PC] << 8) + self.memory[self.PC + 1]
-            
+
             self.decode(opcode)
-            
-            scaled_screen = pygame.transform.scale(self.display.screen, (Display.WIDTH * Display.SCALE, Display.HEIGHT * Display.SCALE))
+
+            scaled_screen = pygame.transform.scale(
+                self.display.screen,
+                (Display.WIDTH * Display.SCALE, Display.HEIGHT * Display.SCALE),
+            )
             self.display.window.blit(scaled_screen, (0, 0))
-            
+
             pygame.display.flip()
-            
+
     def listen(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -277,7 +296,7 @@ class Chip8:
             elif event.type == self.DELAYTIMER:
                 if self.delay_timer > 0:
                     self.delay_timer -= 1
-                    
+
                 if self.sound_timer > 0:
                     self.sound.play()
                     self.sound_timer -= 1
@@ -315,7 +334,7 @@ class Chip8:
                     self.key[0xB] = 1
                 elif event.key == K_v:
                     self.key[0xF] = 1
-                    
+
             elif event.type == KEYUP:
                 if event.key == K_1:
                     self.key[0x1] = 0
@@ -349,6 +368,7 @@ class Chip8:
                     self.key[0xB] = 0
                 elif event.key == K_v:
                     self.key[0xF] = 0
+
 
 rom_path = input("Enter rom: ")
 
