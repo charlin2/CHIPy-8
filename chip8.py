@@ -247,19 +247,19 @@ class Chip8:
                         # extract individual bit corresponding to pixel in row
                         newBit = ((0x1 << (7 - j)) & sprite_line) >> (7 - j)
                         pixel = newBit ^ (
-                            self.display.screen.get_at((x + j, y + i)) == Display.WHITE
+                            self.display.screen.get_at((x + j, y + i)) == Display.ON
                         )
 
                         # set carry register if display bit is flipped
                         if (
                             self.display.screen.get_at((x + j, y + i))
-                            == pygame.Color(255, 255, 255)
+                            == Display.ON
                             and newBit == 1
                         ):
                             self.V[0xF] = 1
 
                         self.display.screen.set_at(
-                            (x + j, y + i), Display.WHITE if pixel else Display.BLACK
+                            (x + j, y + i), Display.ON if pixel else Display.OFF
                         )
 
     def load_rom(self, rom_path):
@@ -277,7 +277,7 @@ class Chip8:
             self.listen()
 
             opcode = (self.memory[self.PC] << 8) + self.memory[self.PC + 1]
-
+            
             self.decode(opcode)
 
             scaled_screen = pygame.transform.scale(
